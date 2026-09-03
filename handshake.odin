@@ -59,6 +59,20 @@ Status :: enum {
 	SERVER_SESSION_STATE_CHANGED,
 }
 
+HandshakeParseError :: enum {
+	NONE,
+	PARSE_ID,
+	PARSE_CAPABILITIES_UPPER,
+	PARSE_CAPABILITIES_LOWER,
+	PARSE_STATUS,
+	BUFFER_LENGTH,
+	EXPECTED_ZERO,
+	CONCAT_OUT_OF_MEMORY,
+	CONCAT_INVALID_POINTER,
+	CONCAT_INVALID_ARGUMENT,
+	CONCAT_MODE_NOT_IMPLEMENTED,
+}
+
 TCP_Handshake :: struct {
 	protocol_version:      u8,
 	server_version:        string,
@@ -89,23 +103,33 @@ TCP_HandshakeResponse :: struct {
 	zstd_compression_level: u8,
 }
 
-HandshakeParseError :: enum {
-	NONE,
-	PARSE_ID,
-	PARSE_CAPABILITIES_UPPER,
-	PARSE_CAPABILITIES_LOWER,
-	PARSE_STATUS,
-	BUFFER_LENGTH,
-	EXPECTED_ZERO,
-	CONCAT_OUT_OF_MEMORY,
-	CONCAT_INVALID_POINTER,
-	CONCAT_INVALID_ARGUMENT,
-	CONCAT_MODE_NOT_IMPLEMENTED,
-}
-
 ClientAttribute :: struct {
 	key:   string,
 	value: string,
+}
+
+encode_client_attributes :: proc (attributes: []ClientAttribute) -> []u8 {
+	res : [dynamic]u8
+	data : [dynamic]u8
+
+	for a in attributes {
+		key := encode_str_lenenc(a.key)
+		defer delete(key)
+		value := encode_str_lenenc(a.value)
+		defer delete(value)
+
+		append(&data, ..key[:])
+		append(&data, ..value[:])
+	}
+
+	len := encode_int_lenenc(u64(len(data)))
+	defer delete(len)
+
+	append(&res, ..len[:])
+	append(&res, ..data[:])
+
+
+	return res[:]
 }
 
 parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: HandshakeParseError) {
@@ -266,90 +290,6 @@ parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: Handshake
 	return
 }
 
-read_bytes :: proc(start, end: int, buff: []u8) -> (res: []u8, ok: bool) {
-	if end > len(buff) || start > end || start < 0 {
-		ok = false
-		return
-	} else {
-		ok = true
-	}
-
-	res = buff[start:end]
-	return
-}
-
-read_bytes_inc :: proc(start, length: int, buff: []u8) -> (res: []u8, index: int, ok: bool) {
-	res, ok = read_bytes(start, start + length, buff)
-	index = start + length
-
-	return
-}
-
-read_byte :: proc(index: int, buff: []u8) -> (res: u8, ok: bool) {
-	if index >= len(buff) || index < 0 {
-		ok = false
-		return
-	} else {
-		ok = true
-	}
-
-	res = buff[index]
-	return
-}
-
-read_byte_inc :: proc(i: int, buff: []u8) -> (res: u8, index: int, ok: bool) {
-	res, ok = read_byte(i, buff)
-	index = i + 1
-
-	return
-}
-
-read_null_string :: proc(i: int, buff: []u8) -> (res: []u8, ok: bool) {
-	start := i
-	index := i
-
-	for {
-		char: u8
-		char, index, ok = read_byte_inc(index, buff)
-		if !ok {
-			return
-		}
-
-		if char == 0 {
-			res, ok = read_bytes(start, index - 1, buff)
-			if !ok {
-				return
-			}
-
-			ok = true
-			return
-		}
-	}
-}
-
-read_null_string_inc :: proc(i: int, buff: []u8) -> (res: []u8, index: int, ok: bool) {
-	start := i
-	index = i
-
-	for {
-		char: u8
-		char, index, ok = read_byte_inc(index, buff)
-		if !ok {
-			return
-		}
-
-		if char == 0 {
-			res, ok = read_bytes(start, index - 1, buff)
-			if !ok {
-				return
-			}
-
-			ok = true
-			return
-		}
-	}
-}
-
 destroy_handshake :: proc(h: ^TCP_Handshake) {
 	delete(h.auth_plugin_data)
 }
@@ -414,4 +354,4 @@ destroy_handshake_response :: proc(h: ^TCP_HandshakeResponse) {
 
 }
 
-get_response :: proc(socket: net.TCP_Socket, buffer: []u8) {}
+

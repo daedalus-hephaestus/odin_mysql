@@ -2,54 +2,6 @@ package mysql
 
 import "core:math"
 
-TCP_Header :: struct {
-	len: int,
-	seq: int,
-}
-
-TCP_Request :: struct {
-	header:  TCP_Header,
-	payload: []byte,
-}
-
-get_header :: proc(buff: []byte) -> (header: TCP_Header) {
-	header.len = (int(buff[0]) | int(buff[1]) << 8 | int(buff[2]) << 16)
-	header.seq = int(buff[3])
-	return
-}
-
-encode_header :: proc(header: TCP_Header) -> (res: [4]u8) {
-	res[0] = u8(header.len)
-	res[1] = u8(header.len >> 8)
-	res[2] = u8(header.len >> 16)
-	res[3] = u8(header.seq)
-	return
-}
-
-encode_request :: proc(req: TCP_Request) -> []u8 {
-	res : [dynamic]u8
-	header := encode_header(req.header)
-
-	append(&res, ..header[:])
-	append(&res, ..req.payload[:])
-
-	return res[:]
-}
-
-calc_header :: proc(data: []u8, seq: int=0) -> TCP_Header {
-	return {
-		len(data),
-		seq
-	}
-}
-
-calc_request :: proc(data: []u8, seq: int=0) -> TCP_Request {
-	return {
-		calc_header(data, seq),
-		data
-	}
-}
-
 // appends a u16 to a byte array (Little Endian)
 append_u16 :: proc(array: ^[dynamic]u8, val: u16) {
 	append(array, u8(val), u8(val >> 8) & 0xff)
@@ -136,25 +88,101 @@ encode_int_lenenc :: proc(val: u64) -> []u8 {
 	return res[:]
 }
 
-encode_client_attributes :: proc (attributes: []ClientAttribute) -> []u8 {
-	res : [dynamic]u8
-	data : [dynamic]u8
-
-	for a in attributes {
-		key := encode_str_lenenc(a.key)
-		defer delete(key)
-		value := encode_str_lenenc(a.value)
-		defer delete(value)
-
-		append(&data, ..key[:])
-		append(&data, ..value[:])
+// returns a slice of u8s from the buffer from i to i + length
+// returns ok = false if i + length is outside of the buffer's range
+read_bytes :: proc(i, end: int, buff: []u8) -> (res: []u8, ok: bool) {
+	if end > len(buff) || i > end || i < 0 {
+		ok = false
+		return
+	} else {
+		ok = true
 	}
 
-	len := encode_int_lenenc(u64(len(data)))
-	defer delete(len)
+	res = buff[i:end]
+	return
+}
 
-	append(&res, ..len[:])
-	append(&res, ..data[:])
+// returns a slice of u8s from the buffer from i to i + length
+// returns i + length as index
+// returns ok = false if i + length is outside of the buffer's range
+read_bytes_inc :: proc(i, length: int, buff: []u8) -> (res: []u8, index: int, ok: bool) {
+	res, ok = read_bytes(i, i + length, buff)
+	index = i + length
 
-	return res[:]
+	return
+}
+
+// returns u8 from the buffer at i
+// returns ok = false if i is outside of the buffer's range
+read_byte :: proc(i: int, buff: []u8) -> (res: u8, ok: bool) {
+	if i >= len(buff) || i < 0 {
+		ok = false
+		return
+	} else {
+		ok = true
+	}
+
+	res = buff[i]
+	return
+}
+
+// returns u8 from the buffer at i
+// returns i + 1 as index
+// returns ok = false if i is outside of the buffer's range
+read_byte_inc :: proc(i: int, buff: []u8) -> (res: u8, index: int, ok: bool) {
+	res, ok = read_byte(i, buff)
+	index = i + 1
+
+	return
+}
+
+// returns the buffer from i until the next null
+// returns ok = false if no null is found between i and the end of the buffer
+read_null_string :: proc(i: int, buff: []u8) -> (res: []u8, ok: bool) {
+	start := i
+	index := i
+
+	for {
+		char: u8
+		char, index, ok = read_byte_inc(index, buff)
+		if !ok {
+			return
+		}
+
+		if char == 0 {
+			res, ok = read_bytes(start, index - 1, buff)
+			if !ok {
+				return
+			}
+
+			ok = true
+			return
+		}
+	}
+}
+
+// returns the buffer from i until the next null
+// returns i + string length as index
+// returns ok = false if no null is found between i and the end of the buffer
+read_null_string_inc :: proc(i: int, buff: []u8) -> (res: []u8, index: int, ok: bool) {
+	start := i
+	index = i
+
+	for {
+		char: u8
+		char, index, ok = read_byte_inc(index, buff)
+		if !ok {
+			return
+		}
+
+		if char == 0 {
+			res, ok = read_bytes(start, index - 1, buff)
+			if !ok {
+				return
+			}
+
+			ok = true
+			return
+		}
+	}
 }
