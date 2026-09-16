@@ -185,10 +185,34 @@ init_connection :: proc(
 	case .ERR_Packet:
 		err_packet, err_err := parse_err_packet(
 			handshake_response_packet.payload[:],
-			handshake_response.client_flags
+			handshake_response.client_flags,
 		)
 		fmt.println(err_packet)
 	}
+
+	test_com: COM_QUERY = {
+		command             = 3,
+		parameter_count     = 12,
+		parameter_set_count = 1,
+		parameters          = {
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = nil},
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = nil},
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = nil},
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = nil},
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = VarChar("test")},
+			{name = "id", type = .INT, value = Int(12)},
+			{name = "name", type = .VARCHAR, value = VarChar("test")},
+		},
+	}
+
+	data, encode_err := encode_com_query(test_com, handshake_response.client_flags)
+	fmt.printfln("%v", data)
+	fmt.println(encode_err)
 
 	// tmp := recv_connection(&conn) or_return
 	// fmt.println(tmp)

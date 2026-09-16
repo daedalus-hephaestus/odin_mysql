@@ -27,7 +27,7 @@ VarChar :: distinct string
 Binary :: distinct []u8
 VarBinary :: distinct []u8
 
-TinyBLob :: distinct []u8
+TinyBlob :: distinct []u8
 Blob :: distinct []u8
 MediumBlob :: distinct []u8
 LongBlob :: distinct []u8
@@ -52,3 +52,85 @@ GeometryCollection :: distinct []u8
 Json :: distinct string
 Vector :: distinct []f32
 
+FieldType :: enum {
+	UNDEFINED,
+	TINYINT,
+	TINYUINT,
+	SMALLINT,
+	SMALLUINT,
+	MEDIUMINT,
+	MEDIUMUINT,
+	INT,
+	UINT,
+	BIGINT,
+	BIGUINT,
+	DECIMAL,
+	FLOAT,
+	DOUBLE,
+	BIT,
+	CHAR,
+	VARCHAR,
+	BINARY,
+	VARBINARY,
+	TINYBLOB,
+	BLOB,
+	MEDIUMBLOB,
+	LONGBLOB,
+	ENUM,
+	DATE,
+	TIME,
+	DATETIME,
+	TIMESTAMP,
+	YEAR,
+	GEOMETRY,
+	POINT,
+	LINESTRING,
+	POLYGON,
+	MULTIPOINT,
+	MULTILINESTRING,
+	MULTIPOLYGON,
+	GEOMETRYCOLLECTION,
+	JSON,
+	VECTOR
+}
+
+FieldValue :: union {
+	TinyInt,
+	TinyUInt,
+	SmallInt,
+	SmallUInt,
+	MediumInt,
+	MediumUInt,
+	Int,
+	UInt,
+	BigInt,
+	BigUInt,
+	Decimal,
+	Numeric,
+	Float,
+	Double,
+	Bit,
+	Char,
+	VarChar,
+	Binary,
+	VarBinary,
+	TinyBlob,
+	MediumBlob,
+	Blob,
+	LongBlob,
+	Enum,
+	Date,
+	Time,
+	DateTime,
+	TimeStamp,
+	Year,
+	Geometry,
+	Point,
+	LineString,
+	Polygon,
+	MultiPoint,
+	MultiLineString,
+	MultiPolygon,
+	Json,
+	Vector
+}
