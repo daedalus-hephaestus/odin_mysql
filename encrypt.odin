@@ -23,6 +23,28 @@ get_auth_plugin :: proc(handshake: TCP_Handshake) -> AuthPlugin {
 	}
 }
 
+set_auth_plugin :: proc(plugin: AuthPlugin) -> string {
+	switch plugin {
+	case .MYSQL_NATIVE_PASSWORD:
+		return "mysql_native_password"
+	case .CACHING_SHA2_PASSWORD:
+		return "caching_sha2_password"
+	case .ED25519:
+		return "ed25519"
+	case .UNSUPPORTED_PLUGIN:
+		return ""
+	case:
+		return ""
+	}
+}
+
+encrypt_password :: proc(plain, auth_data: string, plugin: AuthPlugin) -> (res: [sha1.DIGEST_SIZE]u8) {
+	#partial switch plugin {
+	case .MYSQL_NATIVE_PASSWORD: res = encrypt_native_password(plain, auth_data)
+	}
+	return
+}
+
 encrypt_native_password :: proc(plain, auth_data: string) -> (res: [sha1.DIGEST_SIZE]u8) {
 	stage1: [sha1.DIGEST_SIZE]u8
 	stage2: [sha1.DIGEST_SIZE]u8
@@ -45,7 +67,7 @@ encrypt_native_password :: proc(plain, auth_data: string) -> (res: [sha1.DIGEST_
 	sha1.final(&ctx, digest[:])
 
 	token: [sha1.DIGEST_SIZE]u8
-	for i in 0..<sha1.DIGEST_SIZE {
+	for i in 0 ..< sha1.DIGEST_SIZE {
 		token[i] = stage1[i] ~ digest[i]
 	}
 

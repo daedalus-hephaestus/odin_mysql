@@ -1,6 +1,8 @@
 package mysql
 
+import "core:fmt"
 import "core:math"
+import "core:encoding/endian"
 
 // appends a u16 to a byte array (Little Endian)
 append_u16 :: proc(array: ^[dynamic]u8, val: u16) {
@@ -27,40 +29,113 @@ append_u64 :: proc(array: ^[dynamic]u8, val: u64) {
 	append(array, ..res[:])
 }
 
+// reads a u16 from a buffer (Little Endian) at i
+read_u16 :: proc(i: int, buff: []u8) -> (res: u16, ok: bool) {
+	if i + 1 > len(buff) - 1 {
+		ok = false
+		return
+	} else {
+		ok = true
+	}
+
+	for j in 0..<2 {
+		res |= u16(buff[i + j]) << uint(8 * j)
+	}
+	return
+}
+
+// reads a u24 from a buffer (Little Endian) at i
+read_u24 :: proc(i: int, buff: []u8) -> (res: u32, ok: bool) {
+	if i + 2 > len(buff) - 1 {
+		ok = false
+		return
+	} else {
+		ok = true
+	}
+
+	for j in 0..<3 {
+		res |= u32(buff[i + j]) << uint(8 * j)
+	}
+	return
+}
+
+// reads a u32 from a buffer (Little Endian) at i
+read_u32 :: proc(i: int, buff: []u8) -> (res: u32, ok: bool) {
+	if i + 3 > len(buff) - 1 {
+		ok = false
+		return
+	} else {
+		ok = true
+	}
+
+	for j in 0..<4 {
+		res |= u32(buff[i + j]) << uint(8 * j)
+	}
+	return
+}
+
+// reads a u64 from a buffer (Little Endian) at i
+read_u64 :: proc(i: int, buff: []u8) -> (res: u64, ok: bool) {
+	if i + 7 > len(buff) - 1 {
+		ok = false
+		return
+	} else {
+		ok = true
+	}
+
+	for j in 0..<8 {
+		res |= u64(buff[i + j]) << uint(8 * j)
+	}
+	return
+}
+
 append_str_null :: proc(array: ^[dynamic]u8, str: string) {
 	append(array, ..transmute([]byte)str)
 	append(array, 0)
-}
-
-append_str_lenenc :: proc(array: ^[dynamic]u8, str: string) {
-	bytes := transmute([]byte)str
-	len := u8(len(bytes))
 }
 
 encode_str_lenenc :: proc(str: string) -> []u8 {
 	res: [dynamic]u8
 
 	bytes := transmute([]byte)str
-	len_bytes := len(bytes)
+	len_bytes := encode_int_lenenc(u64(len(bytes)))
+	defer delete(len_bytes)
 
-	switch {
-	case len_bytes == 0:
-		append(&res, 0xfb)
-		return res[:]
-	case len_bytes < 0xfb:
-		append(&res, ..bytes)
-	case len_bytes <= 0xffff:
-		append(&res, 0xfc)
-		append(&res, ..bytes)
-	case len_bytes <= 0xffffff:
-		append(&res, 0xfd)
-		append(&res, ..bytes)
-	case:
-		append(&res, 0xfe)
-		append(&res, ..bytes)
-	}
+	append(&res, ..len_bytes)
+	append(&res, ..bytes)
 
 	return res[:]
+}
+
+// returns a length encoded string from the buffer starting at i
+// returns ok = false if i + the encoded length is outside of the buffer's range
+read_str_lenenc :: proc(i: int, buff: []u8) -> (res: string, ok: bool) {
+	length, index := read_int_lenenc_inc(i, buff) or_return
+
+	if index + int(length) > len(buff) {
+		return
+	}
+
+	res = string(buff[index:index + int(length)])
+	ok = true
+
+	return
+}
+
+// returns a length encoded string from the buffer starting at i
+// returns ok = false if i + the encoded length is outside of the buffer's range
+read_str_lenenc_inc :: proc(i: int, buff: []u8) -> (res: string, index: int, ok: bool) {
+	length, str_start := read_int_lenenc_inc(i, buff) or_return
+
+	if index + int(length) > len(buff) {
+		return
+	}
+
+	res = string(buff[str_start:str_start + int(length)])
+	ok = true
+	index = str_start + int(length)
+
+	return
 }
 
 encode_str_length_u8 :: proc(str: string) -> ([]u8, u8) {
@@ -86,6 +161,61 @@ encode_int_lenenc :: proc(val: u64) -> []u8 {
 	}
 
 	return res[:]
+}
+
+// returns a length encoded u64 from the buffer starting at i
+// returns ok = false if i + the encoded length is outside of the buffer's range
+read_int_lenenc :: proc(i: int, buff: []u8) -> (res: u64, ok: bool) {
+	if i > len(buff) - 1 {
+		return
+	}
+
+	switch {
+	case buff[i] < 0xfb:
+		res = u64(buff[i])
+		ok = true
+	case buff[i] == 0xfc:
+		res = u64(read_u16(i + 1, buff) or_return)
+		ok = true
+	case buff[i] == 0xfd:
+		res = u64(read_u24(i + 1, buff) or_return)
+		ok = true
+	case buff[i] == 0xfe:
+		res = u64(read_u64(i + 1, buff) or_return)
+		ok = true
+	}
+
+	return
+}
+
+// returns a length encoded u64 from the buffer starting at i
+// returns i + the encoded length as index
+// returns ok = false if i + the encoded length is outside of the buffer's range
+read_int_lenenc_inc :: proc(i: int, buff: []u8) -> (res: u64, index: int, ok: bool) {
+	if i > len(buff) - 1 {
+		return
+	}
+
+	switch {
+	case buff[i] < 0xfb:
+		res = u64(buff[i])
+		index = i + 1
+		ok = true
+	case buff[i] == 0xfc:
+		res = u64(read_u16(i + 1, buff) or_return)
+		index = i + 3
+		ok = true
+	case buff[i] == 0xfd:
+		res = u64(read_u24(i + 1, buff) or_return)
+		index = i + 4
+		ok = true
+	case buff[i] == 0xfe:
+		res = u64(read_u64(i + 1, buff) or_return)
+		index = i + 8
+		ok = true
+	}
+
+	return
 }
 
 // returns a slice of u8s from the buffer from i to i + length

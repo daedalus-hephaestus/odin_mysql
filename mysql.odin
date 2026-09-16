@@ -38,56 +38,9 @@ main :: proc() {
 		}
 	}
 
-	conn, err := init_connection("127.0.0.1:3306")
-	if err != nil {
-		fmt.println("resolve failed: ", err)
-		return
-	}
+	conn, err := init_connection("127.0.0.1:3306", "odin", "Hugin&MuginD@t@", "odin")
+	fmt.println(err)
 
-	err = dial_connection(&conn)
-	if err != nil {
-		fmt.println("dial failed: ", err)
-		return
-	}
-
-	handshake_err := handshake_connection(&conn, "odin", "Hugin&MuginD@t@", "odin")
-	fmt.println(handshake_err)
-	//
-	// n, rec_err := net.recv_tcp(socket, buff[:])
-	// if rec_err != nil {
-	// 	fmt.println("receive failed: ", rec_err)
-	// 	return
-	// }
-	//
-	// request: TCP_Request = {
-	// 	header  = get_header(buff[:n]),
-	// 	payload = buff[4:n],
-	// }
-	//
-	// handshake, test_err := parse_handshake(request.payload)
-	// defer destroy_handshake(&handshake)
-	//
-	// hash := encrypt_native_password("test", handshake.auth_plugin_data)
-	// fmt.println(hash)
-	//
-	// response := TCP_HandshakeResponse {
-	// 	client_flags = #partial{
-	// 		.CLIENT_PROTOCOL_41 = true,
-	// 		.CLIENT_PLUGIN_AUTH = true,
-	// 		.CLIENT_LONG_PASSWORD = true,
-	// 		.CLIENT_CONNECT_WITH_DB = true,
-	// 	},
-	// 	max_packet_size = 64,
-	// 	character_set = handshake.character_set,
-	// 	username = "odin",
-	// 	database = "odin",
-	// 	auth_response = string(hash[:]),
-	// 	client_attributes = {{key = "test", value = "1235"}, {key = "hello", value = "world"}},
-	// }
-	//
-	// encoded_response := encode_handshake_response(response)
-	// defer delete(encoded_response)
-	// handshake_res := calc_request(encoded_response[:], 1)
-	// encoded_handshake_res := encode_request(handshake_res)
-	// defer delete(encoded_handshake_res)
 }
+
+

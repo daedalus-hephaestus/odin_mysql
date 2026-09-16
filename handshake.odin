@@ -45,6 +45,7 @@ Capabilities :: enum {
 Status :: enum {
 	SERVER_STATUS_IN_TRANS,
 	SERVER_STATUS_AUTOCOMMIT,
+	UNUSED_BIT_2,
 	SERVER_MORE_RESULTS_EXISTS,
 	SERVER_QUERY_NO_GOOD_INDEX_USED,
 	SERVER_QUERY_NO_INDEX_USED,
@@ -57,14 +58,15 @@ Status :: enum {
 	SERVER_PS_OUT_PARAMS,
 	SERVER_STATUS_IN_TRANS_READONLY,
 	SERVER_SESSION_STATE_CHANGED,
+	UNUSED_BIT_15
 }
 
-HandshakeParseError :: enum {
+PacketParseError :: enum {
 	NONE,
 	PARSE_ID,
 	PARSE_CAPABILITIES_UPPER,
 	PARSE_CAPABILITIES_LOWER,
-	PARSE_STATUS,
+	PARSE_INT,
 	BUFFER_LENGTH,
 	EXPECTED_ZERO,
 	CONCAT_OUT_OF_MEMORY,
@@ -98,9 +100,27 @@ TCP_HandshakeResponse :: struct {
 	auth_response_length:   u8,
 	database:               string,
 	client_plugin_name:     string,
-	length_of_key_values:   u64,
 	client_attributes:      []ClientAttribute,
 	zstd_compression_level: u8,
+}
+
+TCP_OK_Packet :: struct {
+	header:             u8,
+	affected_rows:      u64,
+	last_insert_id:     u64,
+	status_flag_bytes:  u16,
+	status_flags:       [Status]bool,
+	warnings:           u16,
+	session_state_info: string,
+	info:               string,
+}
+
+TCP_ERR_Packet :: struct {
+	header: u8,
+	error_code: u16,
+	sql_state_marker: string,
+	sql_state: string,
+	error_message: string
 }
 
 ClientAttribute :: struct {
@@ -108,9 +128,15 @@ ClientAttribute :: struct {
 	value: string,
 }
 
-encode_client_attributes :: proc (attributes: []ClientAttribute) -> []u8 {
-	res : [dynamic]u8
-	data : [dynamic]u8
+DEFAULT_ATTRIBUTES: []ClientAttribute = {
+	{key = "_client_name", value = "daedalus_odin_client"},
+	{key = "_client_version", value = "alpha"},
+	{key = "_os", value = "linux"},
+}
+
+encode_client_attributes :: proc(attributes: []ClientAttribute) -> []u8 {
+	res: [dynamic]u8
+	data: [dynamic]u8
 
 	for a in attributes {
 		key := encode_str_lenenc(a.key)
@@ -127,12 +153,13 @@ encode_client_attributes :: proc (attributes: []ClientAttribute) -> []u8 {
 
 	append(&res, ..len[:])
 	append(&res, ..data[:])
+	delete(data)
 
 
 	return res[:]
 }
 
-parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: HandshakeParseError) {
+parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: PacketParseError) {
 	i: int
 	range_ok: bool
 
@@ -158,7 +185,7 @@ parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: Handshake
 	}
 	thread_id, thread_ok := endian.get_u32(thread_id_buff, .Little)
 	if !thread_ok {
-		err = .PARSE_ID
+		err = .PARSE_INT
 		return
 	}
 	handshake.thread_id = thread_id
@@ -202,7 +229,7 @@ parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: Handshake
 	}
 	status_flag_bytes, status_ok := endian.get_u16(status_flag_buff, .Little)
 	if !status_ok {
-		err = .PARSE_STATUS
+		err = .PARSE_INT
 		return
 	}
 	handshake.status_flag_bytes = status_flag_bytes
@@ -290,6 +317,155 @@ parse_handshake :: proc(buff: []u8) -> (handshake: TCP_Handshake, err: Handshake
 	return
 }
 
+parse_ok_packet :: proc(
+	buff: []u8,
+	capabilities: [Capabilities]bool,
+) -> (
+	ok_packet: TCP_OK_Packet,
+	err: PacketParseError,
+) {
+	i: int
+	range_ok: bool
+
+	ok_packet.header, i, range_ok = read_byte_inc(i, buff)
+	if !range_ok {
+		err = .BUFFER_LENGTH
+		return
+	}
+
+	ok_packet.affected_rows, i, range_ok = read_int_lenenc_inc(i, buff)
+	if !range_ok {
+		err = .BUFFER_LENGTH
+		return
+	}
+
+	ok_packet.last_insert_id, i, range_ok = read_int_lenenc_inc(i, buff)
+	if !range_ok {
+		err = .BUFFER_LENGTH
+		return
+	}
+
+	if capabilities[.CLIENT_PROTOCOL_41] {
+
+		status_flag_buff: []u8
+		status_flag_buff, i, range_ok = read_bytes_inc(i, 2, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH
+			return
+		}
+		status_flag_bytes, status_ok := endian.get_u16(status_flag_buff, .Little)
+		if !status_ok {
+			err = .PARSE_INT
+			return
+		}
+		ok_packet.status_flag_bytes = status_flag_bytes
+
+		for s in Status {
+			ok_packet.status_flags[s] = stat_mask(s) & ok_packet.status_flag_bytes != 0
+		}
+
+		warnings_buff: []u8
+		warnings_buff, i, range_ok = read_bytes_inc(i, 2, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH
+			return
+		}
+		warnings, warnings_ok := endian.get_u16(warnings_buff, .Little)
+		if !warnings_ok {
+			err = .PARSE_INT
+			return
+		}
+		ok_packet.warnings = warnings
+
+	} else if (capabilities[.CLIENT_TRANSACTIONS]) {
+
+		status_flag_buff: []u8
+		status_flag_buff, i, range_ok = read_bytes_inc(i, 2, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH
+			return
+		}
+		status_flag_bytes, status_ok := endian.get_u16(status_flag_buff, .Little)
+		if !status_ok {
+			err = .PARSE_INT
+			return
+		}
+		ok_packet.status_flag_bytes = status_flag_bytes
+
+		for s in Status {
+			ok_packet.status_flags[s] = stat_mask(s) & ok_packet.status_flag_bytes != 0
+		}
+
+	}
+
+	if capabilities[.CLIENT_SESSION_TRACK] {
+
+		ok_packet.info, i, range_ok = read_str_lenenc_inc(i, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH
+			return
+		}
+
+		if ok_packet.status_flags[.SERVER_SESSION_STATE_CHANGED] {
+			ok_packet.session_state_info, i, range_ok = read_str_lenenc_inc(i, buff)
+			if !range_ok {
+				err = .BUFFER_LENGTH
+				return
+			}
+		}
+	} else {
+		ok_packet.info = string(buff[i:])
+	}
+
+	return
+}
+
+parse_err_packet :: proc(buff: []u8, capabilities: [Capabilities]bool) -> (err_packet: TCP_ERR_Packet, err: PacketParseError) {
+	i : int
+	range_ok : bool
+
+	err_packet.header, i, range_ok = read_byte_inc(i, buff)
+	if !range_ok {
+		err = .BUFFER_LENGTH
+		return
+	}
+	
+	error_code_buff : []u8
+	error_code_buff, i, range_ok = read_bytes_inc(i, 2, buff)
+	if !range_ok {
+		err = .BUFFER_LENGTH
+		return
+	}
+	error_code, error_code_ok := endian.get_u16(error_code_buff, .Little)
+	if !error_code_ok {
+		err = .PARSE_INT
+		return
+	}
+	err_packet.error_code = error_code
+
+	if capabilities[.CLIENT_PROTOCOL_41] {
+		sql_state_marker_bytes : []u8
+		sql_state_marker_bytes, i, range_ok = read_bytes_inc(i, 1, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH	
+			return
+		}
+		err_packet.sql_state_marker = string(sql_state_marker_bytes)
+
+		sql_state_bytes : []u8
+		sql_state_bytes, i, range_ok = read_bytes_inc(i, 5, buff)
+		if !range_ok {
+			err = .BUFFER_LENGTH
+			return
+		}
+		err_packet.sql_state = string(sql_state_bytes)
+	}
+
+	err_packet.error_message = string(buff[i:])
+
+	return
+}
+
 destroy_handshake :: proc(h: ^TCP_Handshake) {
 	delete(h.auth_plugin_data)
 }
@@ -351,7 +527,4 @@ encode_handshake_response :: proc(res: TCP_HandshakeResponse) -> (encoded_res: [
 }
 
 destroy_handshake_response :: proc(h: ^TCP_HandshakeResponse) {
-
 }
-
-
