@@ -38,20 +38,25 @@ encode_com_query :: proc(com_query: COM_QUERY, capabilities: [Capabilities]bool)
 	}
 	
 	if com_query.parameter_count > 0 {
+		// the number of bytes required to store the bitmap
 		null_bitmap_len := (com_query.parameter_count + 7) / 8
 		for byte in 0..<null_bitmap_len {
+			// the byte to be stored
 			val : u8
 
 			for bit in 0..<8 {
+				// the current parameter index
 				i := u64(byte) * 8 + u64(bit)
 				if i > com_query.parameter_count - 1 do break
 
-				if com_query.parameters[i].value == nil {
-					val |= 1 << u8(bit)
-				}
+				// if the value of the parameter is nil, place a one in its position
+				if com_query.parameters[i].value == nil do val |= 1 << u8(bit)
 			}
-			
 			append(&res, val)
+		}
+
+		for p, i in com_query.parameters {
+			fmt.println(u8(p.type))
 		}
 	}
 
