@@ -107,6 +107,12 @@ encode_str_lenenc :: proc(str: string) -> []u8 {
 	return res[:]
 }
 
+append_str_lenenc :: proc(array: ^[dynamic]u8, str: string) {
+	bytes := encode_str_lenenc(str)
+	defer delete(bytes)
+	append(array, ..bytes)
+}
+
 // returns a length encoded string from the buffer starting at i
 // returns ok = false if i + the encoded length is outside of the buffer's range
 read_str_lenenc :: proc(i: int, buff: []u8) -> (res: string, ok: bool) {

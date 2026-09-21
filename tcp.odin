@@ -195,9 +195,9 @@ init_connection :: proc(
 		parameter_count     = 5,
 		parameter_set_count = 1,
 		parameters          = {
-			{name = "id", value = Int(15)},
+			{name = "id", value = BigUInt(15)},
 			{name = "name", value = VarChar("test")},
-			{name = "id", value = Int(12)},
+			{name = "id", value = UInt(12)},
 			{name = "name", value = nil},
 			{name = "id", value = Int(12)},
 		},
@@ -206,6 +206,7 @@ init_connection :: proc(
 	data, encode_err := encode_com_query(test_com, handshake_response.client_flags)
 	fmt.printfln("%v", data)
 	fmt.println(encode_err)
+	delete(data)
 
 	// tmp := recv_connection(&conn) or_return
 	// fmt.println(tmp)

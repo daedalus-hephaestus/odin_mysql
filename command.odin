@@ -12,8 +12,9 @@ ProtocolType :: enum {
 
 QueryParameter :: struct {
 	name: string,
-	type: FieldType,
-	value: FieldValue
+	value: FieldValue,
+	nil: bool,
+	unsigned: bool
 }
 
 COM_QUERY :: struct {
@@ -29,8 +30,14 @@ COM_QUERY :: struct {
 
 encode_com_query :: proc(com_query: COM_QUERY, capabilities: [Capabilities]bool) -> (res: [dynamic]u8, err: PacketParseError) {
 	append(&res, com_query.command)
-	append(&res, ..encode_int_lenenc(com_query.parameter_count))
-	append(&res, ..encode_int_lenenc(com_query.parameter_set_count))
+
+	parameter_count := encode_int_lenenc(com_query.parameter_count)
+	defer delete(parameter_count)
+	append(&res, ..parameter_count)
+
+	parameter_set_count := encode_int_lenenc(com_query.parameter_set_count)
+	defer delete(parameter_set_count)
+	append(&res, ..parameter_set_count)
 
 	if com_query.parameter_count != u64(len(com_query.parameters)) {
 		err = .PARAMETER_COUNT_MISMATCH	
@@ -50,13 +57,14 @@ encode_com_query :: proc(com_query: COM_QUERY, capabilities: [Capabilities]bool)
 				if i > com_query.parameter_count - 1 do break
 
 				// if the value of the parameter is nil, place a one in its position
-				if com_query.parameters[i].value == nil do val |= 1 << u8(bit)
+				if com_query.parameters[i].nil == true do val |= 1 << u8(bit)
 			}
 			append(&res, val)
 		}
 
 		for p, i in com_query.parameters {
-			_, _ = encode_field(p.value)
+			type := encode_type_from_val(p.value)
+			append(&res, type)
 		}
 	}
 

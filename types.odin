@@ -134,9 +134,7 @@ FieldValue :: union {
 encode_field :: proc(value: FieldValue) -> (res: [dynamic]u8, ok: bool) {
 	#partial switch v in value {
 	case VarChar:
-		bytes := encode_str_lenenc(string(v))
-		fmt.println(bytes)
-		append(&res, ..bytes)
+		append_str_lenenc(&res, string(v))
 	}
 	fmt.println(typeid_of(type_of(value)))
 	return
@@ -201,12 +199,18 @@ get_field_type :: proc(value: FieldValue) -> (type: FieldType, unsigned: bool) {
 	case Year:
 		type = .MYSQL_TYPE_YEAR
 	case Geometry, Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon:
-	 	type = .MYSQL_TYPE_GEOMETRY
+		type = .MYSQL_TYPE_GEOMETRY
 	case Json:
 		type = .MYSQL_TYPE_JSON
 	case Vector:
 		type = .MYSQL_TYPE_VECTOR
-		
+
 	}
+	return
+}
+
+encode_type_from_val :: proc(value: FieldValue) -> (res: u8) {
+	type, unsigned := get_field_type(value)
+	res = u8(type) | u8(unsigned) << 7 
 	return
 }
