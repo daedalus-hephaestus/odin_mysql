@@ -56,7 +56,7 @@ encode_com_query :: proc(com_query: COM_QUERY, capabilities: [Capabilities]bool)
 		}
 
 		for p, i in com_query.parameters {
-			fmt.println(u8(p.type))
+			_, _ = encode_field(p.value)
 		}
 	}
 

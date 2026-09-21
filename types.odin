@@ -1,5 +1,6 @@
 package mysql
 
+import "core:fmt"
 import "core:time"
 
 TinyInt :: distinct i8
@@ -86,7 +87,7 @@ FieldType :: enum {
 	MYSQL_TYPE_BLOB = 252,
 	MYSQL_TYPE_VAR_STRING = 253,
 	MYSQL_TYPE_STRING = 254,
-	MYSQL_TYPE_GEOMETRY = 255
+	MYSQL_TYPE_GEOMETRY = 255,
 }
 
 FieldValue :: union {
@@ -127,5 +128,85 @@ FieldValue :: union {
 	MultiLineString,
 	MultiPolygon,
 	Json,
-	Vector
+	Vector,
+}
+
+encode_field :: proc(value: FieldValue) -> (res: [dynamic]u8, ok: bool) {
+	#partial switch v in value {
+	case VarChar:
+		bytes := encode_str_lenenc(string(v))
+		fmt.println(bytes)
+		append(&res, ..bytes)
+	}
+	fmt.println(typeid_of(type_of(value)))
+	return
+}
+
+get_field_type :: proc(value: FieldValue) -> (type: FieldType, unsigned: bool) {
+	switch v in value {
+	case TinyInt:
+		type = .MYSQL_TYPE_TINY
+	case TinyUInt:
+		type, unsigned = .MYSQL_TYPE_TINY, true
+	case SmallInt:
+		type = .MYSQL_TYPE_SHORT
+	case SmallUInt:
+		type, unsigned = .MYSQL_TYPE_SHORT, true
+	case MediumInt:
+		type = .MYSQL_TYPE_INT24
+	case MediumUInt:
+		type, unsigned = .MYSQL_TYPE_INT24, true
+	case Int:
+		type = .MYSQL_TYPE_LONG
+	case UInt:
+		type, unsigned = .MYSQL_TYPE_LONG, true
+	case BigInt:
+		type = .MYSQL_TYPE_LONGLONG
+	case BigUInt:
+		type, unsigned = .MYSQL_TYPE_LONGLONG, true
+	case Decimal:
+		type = .MYSQL_TYPE_DECIMAL
+	case Numeric:
+		type = .MYSQL_TYPE_NEWDECIMAL
+	case Float:
+		type = .MYSQL_TYPE_FLOAT
+	case Double:
+		type = .MYSQL_TYPE_DOUBLE
+	case Bit:
+		type = .MYSQL_TYPE_BIT
+	case Char, Binary:
+		type = .MYSQL_TYPE_STRING
+	case VarChar:
+		type = .MYSQL_TYPE_VARCHAR
+	case VarBinary:
+		type = .MYSQL_TYPE_VAR_STRING
+	case TinyBlob:
+		type = .MYSQL_TYPE_TINY_BLOB
+	case MediumBlob:
+		type = .MYSQL_TYPE_MEDIUM_BLOB
+	case Blob:
+		type = .MYSQL_TYPE_BLOB
+	case LongBlob:
+		type = .MYSQL_TYPE_LONG_BLOB
+	case Enum:
+		type = .MYSQL_TYPE_ENUM
+	case Date:
+		type = .MYSQL_TYPE_DATE
+	case Time:
+		type = .MYSQL_TYPE_TIME
+	case DateTime:
+		type = .MYSQL_TYPE_DATETIME
+	case TimeStamp:
+		type = .MYSQL_TYPE_TIMESTAMP
+	case Year:
+		type = .MYSQL_TYPE_YEAR
+	case Geometry, Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon:
+	 	type = .MYSQL_TYPE_GEOMETRY
+	case Json:
+		type = .MYSQL_TYPE_JSON
+	case Vector:
+		type = .MYSQL_TYPE_VECTOR
+		
+	}
+	return
 }

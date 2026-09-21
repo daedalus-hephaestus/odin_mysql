@@ -192,21 +192,14 @@ init_connection :: proc(
 
 	test_com: COM_QUERY = {
 		command             = 3,
-		parameter_count     = 12,
+		parameter_count     = 5,
 		parameter_set_count = 1,
 		parameters          = {
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = nil},
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = nil},
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = nil},
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = nil},
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = VarChar("test")},
-			{name = "id", type = .MYSQL_TYPE_INT24, value = Int(12)},
-			{name = "name", type = .MYSQL_TYPE_STRING, value = VarChar("test")},
+			{name = "id", value = Int(15)},
+			{name = "name", value = VarChar("test")},
+			{name = "id", value = Int(12)},
+			{name = "name", value = nil},
+			{name = "id", value = Int(12)},
 		},
 	}
 
