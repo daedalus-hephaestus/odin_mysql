@@ -129,6 +129,8 @@ init_connection :: proc(
 	initial_packet := recv_connection(&conn) or_return
 	defer destroy_packet(&initial_packet)
 
+	fmt.printfln("\nInitial packet: %v", initial_packet)
+
 	decoded_handshake := parse_handshake(initial_packet.payload) or_return
 	defer destroy_handshake(&decoded_handshake)
 
@@ -142,6 +144,7 @@ init_connection :: proc(
 			.CLIENT_PLUGIN_AUTH = true,
 			.CLIENT_CONNECT_ATTRS = true,
 			.CLIENT_SESSION_TRACK = true,
+			.CLIENT_QUERY_ATTRIBUTES = true,
 		},
 		max_packet_size = MAX_PACKET_SIZE,
 		character_set = decoded_handshake.character_set,
@@ -164,6 +167,7 @@ init_connection :: proc(
 	defer delete(encoded_response)
 
 	response_packet := get_packet(encoded_response[:], conn.i)
+	fmt.printfln("\nResponse packet: %v", initial_packet)
 
 	encoded_response_packet := encode_packet(response_packet)
 	defer delete(encoded_response_packet)
@@ -181,35 +185,49 @@ init_connection :: proc(
 			handshake_response_packet.payload[:],
 			handshake_response.client_flags,
 		)
-		fmt.println(ok_packet)
+		fmt.printfln("\nOK Packet: %v", handshake_response_packet)
 	case .ERR_Packet:
 		err_packet, err_err := parse_err_packet(
 			handshake_response_packet.payload[:],
 			handshake_response.client_flags,
 		)
-		fmt.println(err_packet)
 	}
 
+	// test_com: COM_QUERY = {
+	// 	command              = 3,
+	// 	query                = "INSERT INTO test (id, name) VALUES (?, ?);",
+	// 	parameter_count      = 2,
+	// 	parameter_set_count  = 1,
+	// 	new_params_bind_flag = 1,
+	// 	parameters           = {
+	// 		{name = "id", value = Int(4)},
+	// 		{name = "name", value = VarChar("Alice")},
+	// 	},
+	// }
+
 	test_com: COM_QUERY = {
-		command             = 3,
-		parameter_count     = 5,
+		command = 3,
+		query = "SELECT 1",
+		parameter_count = 0,
 		parameter_set_count = 1,
-		parameters          = {
-			{name = "id", value = BigUInt(15)},
-			{name = "name", value = VarChar("test")},
-			{name = "id", value = UInt(12)},
-			{name = "name", value = nil},
-			{name = "id", value = Int(12)},
-		},
+		new_params_bind_flag = 1
 	}
 
 	data, encode_err := encode_com_query(test_com, handshake_response.client_flags)
-	fmt.printfln("%v", data)
-	fmt.println(encode_err)
-	delete(data)
+	if encode_err != nil do fmt.println(encode_err)
+	defer delete(data)
 
-	// tmp := recv_connection(&conn) or_return
-	// fmt.println(tmp)
+	com_packet := get_packet(data[:], 0)
+	encoded_com_packet := encode_packet(com_packet)
+	defer delete(encoded_com_packet)
+
+	fmt.printfln("\nCom packet: %v", com_packet)
+
+	send_connection(&conn, encoded_com_packet[:]) or_return
+
+	tmp := recv_connection(&conn) or_return
+	fmt.printfln("\nCom packet response: %v", tmp)
+	destroy_packet(&tmp)
 	return
 }
 

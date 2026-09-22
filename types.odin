@@ -20,7 +20,10 @@ Numeric :: distinct string
 Float :: distinct f32
 Double :: distinct f64
 
-Bit :: distinct u64
+Bit :: struct {
+	val: u64,
+	len: u8,
+}
 
 Char :: distinct string
 VarChar :: distinct string
@@ -131,12 +134,60 @@ FieldValue :: union {
 	Vector,
 }
 
-encode_field :: proc(value: FieldValue) -> (res: [dynamic]u8, ok: bool) {
+encode_field :: proc(value: FieldValue) -> (res: [dynamic]u8) {
 	#partial switch v in value {
+	case Char:
+		append_str_lenenc(&res, string(v))
+	case Binary:
+		append_str_lenenc(&res, string(v))
 	case VarChar:
 		append_str_lenenc(&res, string(v))
+	case VarBinary:
+		append_str_lenenc(&res, string(v))
+	case Enum:
+		append_str_lenenc(&res, string(v))
+	case LongBlob:
+		append_str_lenenc(&res, string(v))
+	case MediumBlob:
+		append_str_lenenc(&res, string(v))
+	case Blob:
+		append_str_lenenc(&res, string(v))
+	case TinyBlob:
+		append_str_lenenc(&res, string(v))
+	case Bit:
+		append_bit(&res, v)
+	case Decimal:
+		append_str_lenenc(&res, string(v))
+	case Numeric:
+		append_str_lenenc(&res, string(v))
+	case Json:
+		append_str_lenenc(&res, string(v))
+	case BigInt:
+		append_u64(&res, u64(v))
+	case BigUInt:
+		append_u64(&res, u64(v))
+	case Int:
+		append_u32(&res, u32(v))
+	case UInt:
+		append_u32(&res, u32(v))
+	case MediumInt:
+		append_u32(&res, u32(v))
+	case MediumUInt:
+		append_u32(&res, u32(v))
+	case SmallInt:
+		append_u16(&res, u16(v))
+	case SmallUInt:
+		append_u16(&res, u16(v))
+	case Year:
+		append_u16(&res, u16(v))
+	case TinyInt:
+		append(&res, u8(v))
+	case TinyUInt:
+		append(&res, u8(v))
+	case Double:
+		bits := transmute(u64) v
+		append_u64(&res, bits)
 	}
-	fmt.println(typeid_of(type_of(value)))
 	return
 }
 
@@ -211,6 +262,6 @@ get_field_type :: proc(value: FieldValue) -> (type: FieldType, unsigned: bool) {
 
 encode_type_from_val :: proc(value: FieldValue) -> (res: u8) {
 	type, unsigned := get_field_type(value)
-	res = u8(type) | u8(unsigned) << 7 
+	res = u8(type) | u8(unsigned) << 7
 	return
 }

@@ -1,8 +1,8 @@
 package mysql
 
+import "core:encoding/endian"
 import "core:fmt"
 import "core:math"
-import "core:encoding/endian"
 
 // appends a u16 to a byte array (Little Endian)
 append_u16 :: proc(array: ^[dynamic]u8, val: u16) {
@@ -38,7 +38,7 @@ read_u16 :: proc(i: int, buff: []u8) -> (res: u16, ok: bool) {
 		ok = true
 	}
 
-	for j in 0..<2 {
+	for j in 0 ..< 2 {
 		res |= u16(buff[i + j]) << uint(8 * j)
 	}
 	return
@@ -53,7 +53,7 @@ read_u24 :: proc(i: int, buff: []u8) -> (res: u32, ok: bool) {
 		ok = true
 	}
 
-	for j in 0..<3 {
+	for j in 0 ..< 3 {
 		res |= u32(buff[i + j]) << uint(8 * j)
 	}
 	return
@@ -68,7 +68,7 @@ read_u32 :: proc(i: int, buff: []u8) -> (res: u32, ok: bool) {
 		ok = true
 	}
 
-	for j in 0..<4 {
+	for j in 0 ..< 4 {
 		res |= u32(buff[i + j]) << uint(8 * j)
 	}
 	return
@@ -83,7 +83,7 @@ read_u64 :: proc(i: int, buff: []u8) -> (res: u64, ok: bool) {
 		ok = true
 	}
 
-	for j in 0..<8 {
+	for j in 0 ..< 8 {
 		res |= u64(buff[i + j]) << uint(8 * j)
 	}
 	return
@@ -138,7 +138,7 @@ read_str_lenenc_inc :: proc(i: int, buff: []u8) -> (res: string, index: int, ok:
 	}
 
 	res = string(buff[str_start:str_start + int(length)])
-	ok = true
+		ok = true
 	index = str_start + int(length)
 
 	return
@@ -167,6 +167,12 @@ encode_int_lenenc :: proc(val: u64) -> []u8 {
 	}
 
 	return res[:]
+}
+
+append_int_lenenc :: proc(array: ^[dynamic]u8, val: u64) {
+	bytes := encode_int_lenenc(val)
+	defer delete(bytes)
+	append(array, ..bytes)
 }
 
 // returns a length encoded u64 from the buffer starting at i
@@ -205,13 +211,13 @@ read_int_lenenc_inc :: proc(i: int, buff: []u8) -> (res: u64, index: int, ok: bo
 	switch {
 	case buff[i] < 0xfb:
 		res = u64(buff[i])
-		index = i + 1
+		index = i + 1	
 		ok = true
 	case buff[i] == 0xfc:
 		res = u64(read_u16(i + 1, buff) or_return)
 		index = i + 3
 		ok = true
-	case buff[i] == 0xfd:
+	case buff[i] == 0xfd:		
 		res = u64(read_u24(i + 1, buff) or_return)
 		index = i + 4
 		ok = true
@@ -322,3 +328,25 @@ read_null_string_inc :: proc(i: int, buff: []u8) -> (res: []u8, index: int, ok: 
 		}
 	}
 }
+
+encode_bit :: proc(val: Bit) -> (res: [dynamic]u8) {
+	byte_count := (val.len + 7) / 8
+
+	len_bytes := encode_int_lenenc(u64(byte_count))
+	defer delete(len_bytes)
+	append(&res, ..len_bytes)
+
+	for i in 0..<val.len {
+		append(&res, u8(u64(val.val) >> (i * 8)))
+	}
+
+	return	
+}
+
+append_bit :: proc(array: ^[dynamic]u8, val: Bit) {
+	bytes := encode_bit(val)
+	defer delete(bytes)
+	append(array, ..bytes[:])
+}
+
+
